@@ -519,6 +519,32 @@
       opacity: 1;
     }
     
+    /* Dimension presets */
+    .preset-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    
+    .preset-btn {
+      padding: 6px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .preset-btn:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+    
     .slider-container {
       margin-top: 8px;
     }
@@ -875,6 +901,28 @@ Telecom,10,Sector</textarea>
             💡 <strong>Import your own palette!</strong> Use the Adobe Color section above to upload a custom .ase file from <a href="https://color.adobe.com" target="_blank" style="color:#60a5fa">color.adobe.com</a>
           </div>
         </div>
+        
+        <div class="section">
+          <label class="label">Diagram Dimensions</label>
+          <div class="input-row">
+            <div class="field">
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Width (px)</label>
+              <input type="number" id="diagram-width" class="small-input" value="800" min="400" max="1600" step="50">
+            </div>
+            <div class="field">
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Height (px)</label>
+              <input type="number" id="diagram-height" class="small-input" value="550" min="300" max="1200" step="50">
+            </div>
+          </div>
+          <div class="preset-buttons">
+            <button class="preset-btn" data-width="800" data-height="550">Default</button>
+            <button class="preset-btn" data-width="800" data-height="800">Square</button>
+            <button class="preset-btn" data-width="1200" data-height="675">16:9</button>
+            <button class="preset-btn" data-width="1080" data-height="1080">Instagram</button>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
         
         <div class="section">
           <label class="label">Iterations: <span id="iter-value">60</span></label>
@@ -1245,8 +1293,8 @@ Category B,50,Type2</code>
     let customColorMap = {};  // Manual color assignments: { itemName: hexColor }
     let useCustomPalette = false;
     
-    const width = 800;
-    const height = 550;
+    let diagramWidth = 800;
+    let diagramHeight = 550;
     
     // Show notification
     function showNotification(message, type = 'info') {
@@ -1730,10 +1778,13 @@ Category B,50,Type2</code>
       const polygonSides = parseInt(document.getElementById('polygon-sides').value);
       const cornerRounding = parseInt(document.getElementById('corner-rounding').value);
       
+      // Update SVG viewBox with current dimensions
+      svg.setAttribute('viewBox', `0 0 ${diagramWidth} ${diagramHeight}`);
+      
       document.getElementById('processing').classList.add('visible');
       
       requestAnimationFrame(() => {
-        cells = computeVoronoiTreemap(parsedData, width, height, iterations);
+        cells = computeVoronoiTreemap(parsedData, diagramWidth, diagramHeight, iterations);
         const totalValue = parsedData.reduce((sum, d) => sum + d.value, 0);
         
         // Build SVG content
@@ -1747,7 +1798,7 @@ Category B,50,Type2</code>
               </feMerge>
             </filter>
           </defs>
-          <rect width="${width}" height="${height}" fill="${bgColor}"/>
+          <rect width="${diagramWidth}" height="${diagramHeight}" fill="${bgColor}"/>
         `;
         
         cells.forEach((cell, i) => {
@@ -1885,8 +1936,8 @@ Category B,50,Type2</code>
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = width * 2;
-        canvas.height = height * 2;
+        canvas.width = diagramWidth * 2;
+        canvas.height = diagramHeight * 2;
         const ctx = canvas.getContext('2d');
         ctx.scale(2, 2);
         ctx.drawImage(img, 0, 0);
@@ -1958,6 +2009,31 @@ Category B,50,Type2</code>
         iterValue.textContent = iterSlider.value;
       });
       iterSlider.addEventListener('change', render);
+      
+      // Dimension controls
+      const widthInput = document.getElementById('diagram-width');
+      const heightInput = document.getElementById('diagram-height');
+      
+      widthInput.addEventListener('change', () => {
+        diagramWidth = parseInt(widthInput.value) || 800;
+        render();
+      });
+      
+      heightInput.addEventListener('change', () => {
+        diagramHeight = parseInt(heightInput.value) || 550;
+        render();
+      });
+      
+      // Dimension presets
+      document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          diagramWidth = parseInt(btn.dataset.width);
+          diagramHeight = parseInt(btn.dataset.height);
+          widthInput.value = diagramWidth;
+          heightInput.value = diagramHeight;
+          render();
+        });
+      });
       
       // Polygon sides slider
       const sidesSlider = document.getElementById('polygon-sides');
