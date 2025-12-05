@@ -1,0 +1,2003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convex Treemap Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    :root {
+      --bg-primary: #0f0f1a;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #16213e;
+      --surface: rgba(255,255,255,0.03);
+      --surface-hover: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.08);
+      --text-primary: #e4e4e7;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent: #60a5fa;
+      --accent-secondary: #a78bfa;
+      --success: #4ade80;
+      --warning: #fbbf24;
+    }
+    
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+    
+    .container {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+      position: relative;
+    }
+    
+    header::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(59, 130, 246, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    
+    h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subtitle {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      letter-spacing: 0.15em;
+      margin-top: 8px;
+    }
+    
+    .layout {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 24px;
+    }
+    
+    @media (max-width: 1024px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .panel {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      max-height: calc(100vh - 140px);
+      overflow-y: auto;
+    }
+    
+    .panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .panel::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 3px;
+    }
+    
+    .section {
+      margin-bottom: 20px;
+    }
+    
+    .section:last-child {
+      margin-bottom: 0;
+    }
+    
+    .label {
+      display: block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 140px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    textarea:focus {
+      border-color: var(--accent);
+    }
+    
+    .file-upload {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(139, 92, 246, 0.15));
+      border-radius: 8px;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      transition: all 0.2s ease;
+      font-size: 0.85rem;
+    }
+    
+    .file-upload:hover {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(139, 92, 246, 0.25));
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+    
+    .file-upload input {
+      display: none;
+    }
+    
+    /* Adobe ASE Import Section */
+    .ase-section {
+      background: linear-gradient(135deg, rgba(255, 107, 107, 0.08), rgba(255, 159, 67, 0.08));
+      border: 1px solid rgba(255, 107, 107, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .ase-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    
+    .ase-header svg {
+      color: #ff6b6b;
+    }
+    
+    .ase-header span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #ff9f43;
+    }
+    
+    .ase-dropzone {
+      border: 2px dashed rgba(255, 107, 107, 0.3);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: rgba(0,0,0,0.2);
+    }
+    
+    .ase-dropzone:hover, .ase-dropzone.dragover {
+      border-color: rgba(255, 107, 107, 0.6);
+      background: rgba(255, 107, 107, 0.1);
+    }
+    
+    .ase-dropzone-icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+    }
+    
+    .ase-dropzone-text {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    
+    .ase-dropzone-hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    
+    .ase-palette-preview {
+      margin-top: 12px;
+      display: none;
+    }
+    
+    .ase-palette-preview.visible {
+      display: block;
+    }
+    
+    .ase-palette-name {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .ase-palette-name .color-count {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff9f43;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.65rem;
+    }
+    
+    .ase-colors {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    
+    .ase-color-swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s;
+      position: relative;
+    }
+    
+    .ase-color-swatch:hover {
+      transform: scale(1.15);
+      z-index: 1;
+    }
+    
+    .ase-color-swatch.selected {
+      border-color: white;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.3);
+    }
+    
+    .ase-color-swatch::after {
+      content: attr(data-name);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.9);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.65rem;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+      margin-bottom: 4px;
+    }
+    
+    .ase-color-swatch:hover::after {
+      opacity: 1;
+    }
+    
+    .ase-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn-ase {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: none;
+      font-family: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    
+    .btn-ase-apply {
+      background: linear-gradient(135deg, #ff6b6b, #ff9f43);
+      color: white;
+    }
+    
+    .btn-ase-apply:hover {
+      filter: brightness(1.1);
+    }
+    
+    .btn-ase-clear {
+      background: rgba(255,255,255,0.1);
+      color: var(--text-secondary);
+    }
+    
+    .btn-ase-clear:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    
+    /* Color Assignment Modal */
+    .color-assign-section {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      display: none;
+    }
+    
+    .color-assign-section.visible {
+      display: block;
+    }
+    
+    .color-assign-title {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    
+    .color-assign-list {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .color-assign-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    
+    .color-assign-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .color-assign-label {
+      flex: 1;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .color-assign-picker {
+      display: flex;
+      gap: 4px;
+    }
+    
+    .color-assign-option {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    
+    .color-assign-option:hover {
+      transform: scale(1.2);
+    }
+    
+    .color-assign-option.active {
+      border-color: white;
+    }
+    
+    /* Rest of existing styles */
+    .palette-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .palette-btn {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .palette-btn:hover {
+      border-color: rgba(255,255,255,0.2);
+    }
+    
+    .palette-btn.active {
+      border: 2px solid var(--accent);
+    }
+    
+    .palette-btn.custom-active {
+      border: 2px solid #ff6b6b;
+    }
+    
+    .palette-preview {
+      display: flex;
+      height: 24px;
+      width: 120px;
+      border-radius: 4px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    
+    .palette-preview span {
+      flex: 1;
+    }
+    
+    .palette-name {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: capitalize;
+    }
+    
+    .palette-hint {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 107, 107, 0.08);
+      border-radius: 6px;
+      border-left: 3px solid #ff6b6b;
+      line-height: 1.5;
+    }
+    
+    .palette-hint strong {
+      color: #ff9f43;
+    }
+    
+    /* Shape controls */
+    .shape-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .shape-preview {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      padding: 12px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .shape-example {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .shape-example svg {
+      width: 100%;
+      height: 100%;
+      opacity: 0.4;
+      transition: opacity 0.2s;
+    }
+    
+    .shape-example.active svg {
+      opacity: 1;
+    }
+    
+    .slider-container {
+      margin-top: 8px;
+    }
+    
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    
+    .checkbox-row:hover {
+      color: var(--text-primary);
+    }
+    
+    .checkbox-row input {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    
+    .stats-box {
+      padding: 16px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    .stats-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+    }
+    
+    .stat-row:last-child {
+      margin-bottom: 0;
+    }
+    
+    .stat-label {
+      color: var(--text-secondary);
+    }
+    
+    .stat-value {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    
+    .viz-container {
+      background: rgba(0,0,0,0.3);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+    
+    #treemap-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    
+    .tooltip {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(10px);
+      padding: 12px 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 10;
+    }
+    
+    .tooltip.visible {
+      opacity: 1;
+    }
+    
+    .tooltip-name {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .tooltip-details {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 16px;
+    }
+    
+    .tooltip-details strong {
+      color: var(--text-primary);
+    }
+    
+    .processing-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      padding: 16px 24px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: none;
+    }
+    
+    .processing-overlay.visible {
+      display: block;
+    }
+    
+    .format-hint {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    
+    .format-hint-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    
+    .format-hint code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: block;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    
+    .input-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    
+    .input-row .field {
+      flex: 1;
+    }
+    
+    .small-input {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    .small-input:focus {
+      border-color: var(--accent);
+    }
+    
+    .color-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .color-input-wrap input[type="color"] {
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+    }
+    
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 16px 0;
+    }
+    
+    .btn-export {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2));
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 8px;
+      color: #4ade80;
+      font-family: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .btn-export:hover {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(16, 185, 129, 0.3));
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+    
+    .notification {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(0,0,0,0.9);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 12px 20px;
+      font-size: 0.85rem;
+      color: var(--text-primary);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 100;
+    }
+    
+    .notification.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    
+    .notification.success {
+      border-color: rgba(34, 197, 94, 0.5);
+      color: #4ade80;
+    }
+    
+    .notification.error {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #f87171;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Convex Treemap</h1>
+      <p class="subtitle">Voronoi-Based Proportional Visualization</p>
+    </header>
+    
+    <div class="layout">
+      <!-- Controls Panel -->
+      <aside class="panel">
+        <!-- Adobe ASE Import Section -->
+        <div class="ase-section">
+          <div class="ase-header">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <circle cx="15.5" cy="8.5" r="1.5"/>
+              <circle cx="8.5" cy="15.5" r="1.5"/>
+              <circle cx="15.5" cy="15.5" r="1.5"/>
+            </svg>
+            <span>Adobe Color Import</span>
+          </div>
+          
+          <div class="ase-dropzone" id="ase-dropzone">
+            <div class="ase-dropzone-icon">🎨</div>
+            <div class="ase-dropzone-text">Drop .ase file here or click to upload</div>
+            <div class="ase-dropzone-hint">Download from Adobe Color → Library → Export as .ase</div>
+            <input type="file" id="ase-input" accept=".ase">
+          </div>
+          
+          <div class="ase-palette-preview" id="ase-preview">
+            <div class="ase-palette-name">
+              <span id="ase-palette-title">Imported Palette</span>
+              <span class="color-count" id="ase-color-count">0 colors</span>
+            </div>
+            <div class="ase-colors" id="ase-colors"></div>
+            <div class="ase-actions">
+              <button class="btn-ase btn-ase-apply" id="btn-apply-ase">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Apply to Treemap
+              </button>
+              <button class="btn-ase btn-ase-clear" id="btn-clear-ase">Clear</button>
+            </div>
+            
+            <!-- Manual Color Assignment -->
+            <div class="color-assign-section" id="color-assign-section">
+              <div class="color-assign-title">Manual Color Assignment</div>
+              <div class="color-assign-list" id="color-assign-list"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <label class="label">CSV Data</label>
+          <textarea id="csv-input" placeholder="name,value,group&#10;Item1,100,A&#10;Item2,50,B">name,value,group
+Technology,45,Sector
+Healthcare,38,Sector
+Finance,32,Sector
+Energy,28,Sector
+Consumer,24,Sector
+Industrial,21,Sector
+Materials,18,Sector
+Utilities,15,Sector
+Real Estate,12,Sector
+Telecom,10,Sector</textarea>
+        </div>
+        
+        <div class="section">
+          <label class="file-upload">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Upload CSV File</span>
+            <input type="file" id="file-input" accept=".csv,.txt">
+          </label>
+        </div>
+        
+        <div class="section">
+          <label class="label">Color Palette</label>
+          <div class="palette-grid" id="palette-grid"></div>
+          <div class="palette-hint">
+            💡 <strong>Import your own palette!</strong> Use the Adobe Color section above to upload a custom .ase file from <a href="https://color.adobe.com" target="_blank" style="color:#60a5fa">color.adobe.com</a>
+          </div>
+        </div>
+        
+        <div class="section">
+          <label class="label">Iterations: <span id="iter-value">60</span></label>
+          <div class="slider-container">
+            <input type="range" id="iterations" min="20" max="120" value="60">
+            <div class="slider-labels">
+              <span>Fast</span>
+              <span>Precise</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="section">
+          <label class="label">Shape Controls</label>
+          <div class="shape-controls">
+            <div>
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Polygon Sides: <span id="sides-value">Auto</span></label>
+              <div class="slider-container">
+                <input type="range" id="polygon-sides" min="3" max="12" value="12">
+                <div class="slider-labels">
+                  <span>3 (triangles)</span>
+                  <span>Auto</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Corner Rounding: <span id="rounding-value">0%</span></label>
+              <div class="slider-container">
+                <input type="range" id="corner-rounding" min="0" max="100" value="0">
+                <div class="slider-labels">
+                  <span>Sharp</span>
+                  <span>Smooth</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="section">
+          <label class="label">Display Options</label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="show-labels" checked>
+            <span>Show Labels</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="show-values" checked>
+            <span>Show Percentages</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="show-borders" checked>
+            <span>Show Cell Borders</span>
+          </label>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="section">
+          <label class="label">Text Styling</label>
+          <div class="input-row">
+            <div class="field">
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Font Size</label>
+              <input type="number" id="font-size" class="small-input" value="14" min="8" max="24">
+            </div>
+            <div class="field">
+              <label class="label" style="font-size:0.6rem;margin-bottom:6px">Text Color</label>
+              <div class="color-input-wrap">
+                <input type="color" id="text-color" value="#ffffff">
+                <input type="text" id="text-color-hex" class="small-input" value="#ffffff" style="flex:1">
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="section">
+          <label class="label">Background</label>
+          <div class="color-input-wrap">
+            <input type="color" id="bg-color" value="#1a1a2e">
+            <input type="text" id="bg-color-hex" class="small-input" value="#1a1a2e" style="flex:1">
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="section">
+          <button class="btn-export" id="export-btn">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Export as PNG
+          </button>
+        </div>
+        
+        <div class="section">
+          <div class="stats-box">
+            <div class="stats-title">Statistics</div>
+            <div class="stat-row">
+              <span class="stat-label">Items</span>
+              <span class="stat-value" id="stat-items">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Total Value</span>
+              <span class="stat-value" id="stat-total">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Groups</span>
+              <span class="stat-value" id="stat-groups">0</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+      
+      <!-- Visualization -->
+      <main>
+        <div class="viz-container" id="viz-container">
+          <svg id="treemap-svg" viewBox="0 0 800 550"></svg>
+          <div class="tooltip" id="tooltip">
+            <div class="tooltip-name" id="tooltip-name"></div>
+            <div class="tooltip-details" id="tooltip-details"></div>
+          </div>
+          <div class="processing-overlay" id="processing">Computing Voronoi...</div>
+        </div>
+        
+        <div class="format-hint">
+          <div class="format-hint-title">CSV Format</div>
+          <code>name,value,group  ← Headers (group is optional)
+Category A,100,Type1
+Category B,50,Type2</code>
+        </div>
+      </main>
+    </div>
+  </div>
+  
+  <div class="notification" id="notification"></div>
+
+  <script>
+    // ============================================
+    // ADOBE ASE PARSER
+    // ============================================
+    
+    class ASEParser {
+      constructor(arrayBuffer) {
+        this.buffer = arrayBuffer;
+        this.view = new DataView(arrayBuffer);
+        this.offset = 0;
+        this.colors = [];
+        this.groupName = 'Imported Palette';
+      }
+      
+      parse() {
+        try {
+          // Read signature (4 bytes) - should be "ASEF"
+          const signature = this.readString(4);
+          if (signature !== 'ASEF') {
+            throw new Error('Invalid ASE file: wrong signature');
+          }
+          
+          // Read version (4 bytes) - major.minor as two uint16
+          const versionMajor = this.readUint16();
+          const versionMinor = this.readUint16();
+          
+          // Read number of blocks (4 bytes)
+          const numBlocks = this.readUint32();
+          
+          // Parse each block
+          for (let i = 0; i < numBlocks; i++) {
+            this.parseBlock();
+          }
+          
+          return {
+            success: true,
+            name: this.groupName,
+            colors: this.colors,
+            version: `${versionMajor}.${versionMinor}`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error.message,
+            colors: []
+          };
+        }
+      }
+      
+      parseBlock() {
+        const blockType = this.readUint16();
+        const blockLength = this.readUint32();
+        const blockStart = this.offset;
+        
+        switch (blockType) {
+          case 0xc001: // Group start
+            this.parseGroupStart();
+            break;
+          case 0xc002: // Group end
+            // No data to parse
+            break;
+          case 0x0001: // Color entry
+            this.parseColorEntry();
+            break;
+          default:
+            // Skip unknown block types
+            this.offset = blockStart + blockLength;
+        }
+      }
+      
+      parseGroupStart() {
+        const nameLength = this.readUint16();
+        if (nameLength > 0) {
+          this.groupName = this.readUTF16String(nameLength);
+        }
+      }
+      
+      parseColorEntry() {
+        // Read color name
+        const nameLength = this.readUint16();
+        let colorName = '';
+        if (nameLength > 0) {
+          colorName = this.readUTF16String(nameLength);
+        }
+        
+        // Read color model (4 chars)
+        const colorModel = this.readString(4).trim();
+        
+        let hex = '#000000';
+        
+        switch (colorModel) {
+          case 'RGB':
+            const r = Math.round(this.readFloat32() * 255);
+            const g = Math.round(this.readFloat32() * 255);
+            const b = Math.round(this.readFloat32() * 255);
+            hex = this.rgbToHex(r, g, b);
+            break;
+          case 'CMYK':
+            const c = this.readFloat32();
+            const m = this.readFloat32();
+            const y = this.readFloat32();
+            const k = this.readFloat32();
+            hex = this.cmykToHex(c, m, y, k);
+            break;
+          case 'LAB':
+            const l = this.readFloat32() * 100;
+            const a = this.readFloat32();
+            const b2 = this.readFloat32();
+            hex = this.labToHex(l, a, b2);
+            break;
+          case 'Gray':
+            const gray = Math.round(this.readFloat32() * 255);
+            hex = this.rgbToHex(gray, gray, gray);
+            break;
+          default:
+            // Skip unknown color models
+            console.warn('Unknown color model:', colorModel);
+        }
+        
+        // Read color type (2 bytes): 0=Global, 1=Spot, 2=Normal
+        const colorType = this.readUint16();
+        
+        this.colors.push({
+          name: colorName || `Color ${this.colors.length + 1}`,
+          hex: hex,
+          type: colorType
+        });
+      }
+      
+      // Reading helpers
+      readUint16() {
+        const value = this.view.getUint16(this.offset, false); // Big-endian
+        this.offset += 2;
+        return value;
+      }
+      
+      readUint32() {
+        const value = this.view.getUint32(this.offset, false); // Big-endian
+        this.offset += 4;
+        return value;
+      }
+      
+      readFloat32() {
+        const value = this.view.getFloat32(this.offset, false); // Big-endian
+        this.offset += 4;
+        return value;
+      }
+      
+      readString(length) {
+        let str = '';
+        for (let i = 0; i < length; i++) {
+          str += String.fromCharCode(this.view.getUint8(this.offset++));
+        }
+        return str;
+      }
+      
+      readUTF16String(charCount) {
+        let str = '';
+        for (let i = 0; i < charCount; i++) {
+          const charCode = this.view.getUint16(this.offset, false);
+          this.offset += 2;
+          if (charCode !== 0) { // Skip null terminator
+            str += String.fromCharCode(charCode);
+          }
+        }
+        return str;
+      }
+      
+      // Color conversion helpers
+      rgbToHex(r, g, b) {
+        r = Math.max(0, Math.min(255, r));
+        g = Math.max(0, Math.min(255, g));
+        b = Math.max(0, Math.min(255, b));
+        return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+      }
+      
+      cmykToHex(c, m, y, k) {
+        const r = Math.round(255 * (1 - c) * (1 - k));
+        const g = Math.round(255 * (1 - m) * (1 - k));
+        const b = Math.round(255 * (1 - y) * (1 - k));
+        return this.rgbToHex(r, g, b);
+      }
+      
+      labToHex(l, a, b) {
+        // LAB to XYZ
+        let y = (l + 16) / 116;
+        let x = a / 500 + y;
+        let z = y - b / 200;
+        
+        const labToXyz = (t) => {
+          return t > 0.206893 ? t * t * t : (t - 16/116) / 7.787;
+        };
+        
+        x = 95.047 * labToXyz(x);
+        y = 100.000 * labToXyz(y);
+        z = 108.883 * labToXyz(z);
+        
+        // XYZ to RGB
+        let r = x * 3.2406 + y * -1.5372 + z * -0.4986;
+        let g = x * -0.9689 + y * 1.8758 + z * 0.0415;
+        let bl = x * 0.0557 + y * -0.2040 + z * 1.0570;
+        
+        const xyzToRgb = (t) => {
+          return t > 0.0031308 ? 1.055 * Math.pow(t, 1/2.4) - 0.055 : 12.92 * t;
+        };
+        
+        r = Math.round(xyzToRgb(r / 100) * 255);
+        g = Math.round(xyzToRgb(g / 100) * 255);
+        bl = Math.round(xyzToRgb(bl / 100) * 255);
+        
+        return this.rgbToHex(r, g, bl);
+      }
+    }
+    
+    // ============================================
+    // MAIN APPLICATION
+    // ============================================
+    
+    // Color palettes (built-in) - limited to encourage custom palette usage
+    const palettes = {
+      earth: ['#44403c', '#57534e', '#78716c', '#a8a29e', '#d6d3d1', '#e7e5e4', '#f5f5f4']
+    };
+    
+    let currentPalette = 'earth';
+    let parsedData = [];
+    let cells = [];
+    let aseColors = [];  // Imported ASE colors
+    let customColorMap = {};  // Manual color assignments: { itemName: hexColor }
+    let useCustomPalette = false;
+    
+    const width = 800;
+    const height = 550;
+    
+    // Show notification
+    function showNotification(message, type = 'info') {
+      const notif = document.getElementById('notification');
+      notif.textContent = message;
+      notif.className = `notification visible ${type}`;
+      setTimeout(() => {
+        notif.classList.remove('visible');
+      }, 3000);
+    }
+    
+    // Initialize palette grid
+    function initPalettes() {
+      const grid = document.getElementById('palette-grid');
+      grid.innerHTML = '';
+      
+      Object.entries(palettes).forEach(([name, colors]) => {
+        const btn = document.createElement('button');
+        btn.className = `palette-btn ${name === currentPalette && !useCustomPalette ? 'active' : ''}`;
+        btn.dataset.palette = name;
+        btn.innerHTML = `
+          <div class="palette-preview">
+            ${colors.map(c => `<span style="background:${c}"></span>`).join('')}
+          </div>
+          <div class="palette-name">${name} (default)</div>
+        `;
+        btn.addEventListener('click', () => selectPalette(name));
+        grid.appendChild(btn);
+      });
+    }
+    
+    function selectPalette(name) {
+      currentPalette = name;
+      useCustomPalette = false;
+      customColorMap = {};  // Clear custom assignments when selecting built-in palette
+      
+      document.querySelectorAll('.palette-btn').forEach(btn => {
+        btn.classList.remove('active', 'custom-active');
+        if (btn.dataset.palette === name) {
+          btn.classList.add('active');
+        }
+      });
+      
+      render();
+    }
+    
+    // ============================================
+    // ASE IMPORT FUNCTIONALITY
+    // ============================================
+    
+    function initASEImport() {
+      const dropzone = document.getElementById('ase-dropzone');
+      const input = document.getElementById('ase-input');
+      
+      // Click to upload
+      dropzone.addEventListener('click', () => input.click());
+      
+      // File input change
+      input.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleASEFile(e.target.files[0]);
+        }
+      });
+      
+      // Drag and drop
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+      
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.classList.remove('dragover');
+      });
+      
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.toLowerCase().endsWith('.ase')) {
+          handleASEFile(file);
+        } else {
+          showNotification('Please upload an .ase file', 'error');
+        }
+      });
+      
+      // Apply button
+      document.getElementById('btn-apply-ase').addEventListener('click', applyASEPalette);
+      
+      // Clear button
+      document.getElementById('btn-clear-ase').addEventListener('click', clearASEPalette);
+    }
+    
+    function handleASEFile(file) {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        const parser = new ASEParser(e.target.result);
+        const result = parser.parse();
+        
+        if (result.success && result.colors.length > 0) {
+          aseColors = result.colors;
+          displayASEPreview(result.name, result.colors);
+          showNotification(`Imported ${result.colors.length} colors from "${result.name}"`, 'success');
+        } else {
+          showNotification(result.error || 'No colors found in ASE file', 'error');
+        }
+      };
+      
+      reader.onerror = () => {
+        showNotification('Error reading file', 'error');
+      };
+      
+      reader.readAsArrayBuffer(file);
+    }
+    
+    function displayASEPreview(name, colors) {
+      document.getElementById('ase-preview').classList.add('visible');
+      document.getElementById('ase-palette-title').textContent = name;
+      document.getElementById('ase-color-count').textContent = `${colors.length} colors`;
+      
+      const container = document.getElementById('ase-colors');
+      container.innerHTML = '';
+      
+      colors.forEach((color, i) => {
+        const swatch = document.createElement('div');
+        swatch.className = 'ase-color-swatch';
+        swatch.style.background = color.hex;
+        swatch.dataset.name = color.name;
+        swatch.dataset.hex = color.hex;
+        swatch.title = `${color.name}: ${color.hex}`;
+        container.appendChild(swatch);
+      });
+      
+      // Update manual assignment section
+      updateColorAssignmentUI();
+    }
+    
+    function updateColorAssignmentUI() {
+      const section = document.getElementById('color-assign-section');
+      const list = document.getElementById('color-assign-list');
+      
+      if (parsedData.length === 0 || aseColors.length === 0) {
+        section.classList.remove('visible');
+        return;
+      }
+      
+      section.classList.add('visible');
+      list.innerHTML = '';
+      
+      parsedData.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'color-assign-row';
+        
+        const label = document.createElement('div');
+        label.className = 'color-assign-label';
+        label.textContent = item.name;
+        
+        const picker = document.createElement('div');
+        picker.className = 'color-assign-picker';
+        
+        aseColors.forEach((color, ci) => {
+          const option = document.createElement('div');
+          option.className = 'color-assign-option';
+          if (customColorMap[item.name] === color.hex) {
+            option.classList.add('active');
+          }
+          option.style.background = color.hex;
+          option.title = color.name;
+          option.addEventListener('click', () => {
+            // Toggle selection
+            if (customColorMap[item.name] === color.hex) {
+              delete customColorMap[item.name];
+              option.classList.remove('active');
+            } else {
+              customColorMap[item.name] = color.hex;
+              // Remove active from siblings
+              picker.querySelectorAll('.color-assign-option').forEach(o => o.classList.remove('active'));
+              option.classList.add('active');
+            }
+            if (useCustomPalette) render();
+          });
+          picker.appendChild(option);
+        });
+        
+        row.appendChild(label);
+        row.appendChild(picker);
+        list.appendChild(row);
+      });
+    }
+    
+    function applyASEPalette() {
+      if (aseColors.length === 0) {
+        showNotification('No colors imported yet', 'error');
+        return;
+      }
+      
+      useCustomPalette = true;
+      
+      // Update palette buttons
+      document.querySelectorAll('.palette-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.add('custom-active');
+      });
+      
+      render();
+      showNotification('Adobe Color palette applied!', 'success');
+    }
+    
+    function clearASEPalette() {
+      aseColors = [];
+      customColorMap = {};
+      useCustomPalette = false;
+      
+      document.getElementById('ase-preview').classList.remove('visible');
+      document.getElementById('ase-colors').innerHTML = '';
+      document.getElementById('color-assign-section').classList.remove('visible');
+      document.getElementById('ase-input').value = '';
+      
+      // Reset to default palette
+      selectPalette('earth');
+      showNotification('Custom palette cleared', 'info');
+    }
+    
+    // ============================================
+    // CSV PARSING
+    // ============================================
+    
+    function parseCSV(text) {
+      const lines = text.trim().split('\n').filter(l => l.trim());
+      if (lines.length < 2) return [];
+      
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const nameIdx = headers.findIndex(h => ['name', 'label', 'category', 'item'].includes(h));
+      const valueIdx = headers.findIndex(h => ['value', 'size', 'amount', 'count', 'weight'].includes(h));
+      const groupIdx = headers.findIndex(h => ['group', 'parent', 'type', 'category'].includes(h) && h !== headers[nameIdx]);
+      
+      const useDefault = nameIdx === -1 || valueIdx === -1;
+      
+      return lines.slice(1).map((line, i) => {
+        const parts = line.split(',').map(p => p.trim());
+        return {
+          name: useDefault ? parts[0] : parts[nameIdx] || `Item ${i + 1}`,
+          value: parseFloat(useDefault ? parts[1] : parts[valueIdx]) || 1,
+          group: (useDefault ? parts[2] : (groupIdx !== -1 ? parts[groupIdx] : null)) || 'default'
+        };
+      }).filter(d => d.value > 0 && d.name);
+    }
+    
+    // ============================================
+    // VORONOI TREEMAP COMPUTATION
+    // ============================================
+    
+    function computeVoronoiTreemap(data, w, h, iterations) {
+      if (!data || data.length === 0) return [];
+      
+      const totalValue = data.reduce((sum, d) => sum + d.value, 0);
+      const totalArea = w * h;
+      
+      // Initialize points
+      let points = data.map((d, i) => ({
+        ...d,
+        x: w * 0.15 + Math.random() * w * 0.7,
+        y: h * 0.15 + Math.random() * h * 0.7,
+        targetArea: (d.value / totalValue) * totalArea,
+        index: i
+      }));
+      
+      // Lloyd relaxation with weighted centroids
+      for (let iter = 0; iter < iterations; iter++) {
+        const delaunay = d3.Delaunay.from(points, d => d.x, d => d.y);
+        const voronoi = delaunay.voronoi([0, 0, w, h]);
+        
+        points = points.map((point, i) => {
+          const cell = voronoi.cellPolygon(i);
+          if (!cell) return point;
+          
+          // Calculate centroid and area
+          let cx = 0, cy = 0, area = 0;
+          for (let j = 0; j < cell.length - 1; j++) {
+            const x0 = cell[j][0], y0 = cell[j][1];
+            const x1 = cell[j + 1][0], y1 = cell[j + 1][1];
+            const cross = x0 * y1 - x1 * y0;
+            area += cross;
+            cx += (x0 + x1) * cross;
+            cy += (y0 + y1) * cross;
+          }
+          area = Math.abs(area) / 2;
+          
+          if (area > 0) {
+            const sign = area > 0 ? 1 : -1;
+            cx = cx / (6 * area * sign);
+            cy = cy / (6 * area * sign);
+          } else {
+            cx = point.x;
+            cy = point.y;
+          }
+          
+          // Weight adjustment
+          const areaRatio = Math.sqrt(point.targetArea / Math.max(area, 1));
+          const dampening = 0.6 - (iter / iterations) * 0.4;
+          
+          let newX = point.x + (cx - point.x) * dampening * areaRatio;
+          let newY = point.y + (cy - point.y) * dampening * areaRatio;
+          
+          // Keep within bounds
+          newX = Math.max(5, Math.min(w - 5, newX));
+          newY = Math.max(5, Math.min(h - 5, newY));
+          
+          return { ...point, x: newX, y: newY, currentArea: area };
+        });
+      }
+      
+      // Final Voronoi
+      const delaunay = d3.Delaunay.from(points, d => d.x, d => d.y);
+      const voronoi = delaunay.voronoi([0, 0, w, h]);
+      
+      return points.map((point, i) => {
+        const cell = voronoi.cellPolygon(i);
+        let area = 0;
+        if (cell) {
+          for (let j = 0; j < cell.length - 1; j++) {
+            area += cell[j][0] * cell[j + 1][1] - cell[j + 1][0] * cell[j][1];
+          }
+          area = Math.abs(area) / 2;
+        }
+        return { ...point, polygon: cell || [], currentArea: area };
+      });
+    }
+    
+    // ============================================
+    // POLYGON SHAPE FUNCTIONS
+    // ============================================
+    
+    // Simplify polygon to target number of sides using Visvalingam-like approach
+    function simplifyPolygon(polygon, targetSides) {
+      if (!polygon || polygon.length <= targetSides + 1) return polygon;
+      
+      // Work with a copy (exclude the closing point which duplicates the first)
+      let points = polygon.slice(0, -1);
+      
+      // Calculate the "importance" of each point (area of triangle formed with neighbors)
+      function calcArea(i, pts) {
+        const prev = pts[(i - 1 + pts.length) % pts.length];
+        const curr = pts[i];
+        const next = pts[(i + 1) % pts.length];
+        return Math.abs(
+          (prev[0] * (curr[1] - next[1]) + 
+           curr[0] * (next[1] - prev[1]) + 
+           next[0] * (prev[1] - curr[1])) / 2
+        );
+      }
+      
+      // Iteratively remove least important points
+      while (points.length > targetSides) {
+        let minArea = Infinity;
+        let minIndex = 0;
+        
+        for (let i = 0; i < points.length; i++) {
+          const area = calcArea(i, points);
+          if (area < minArea) {
+            minArea = area;
+            minIndex = i;
+          }
+        }
+        
+        points.splice(minIndex, 1);
+      }
+      
+      // Close the polygon
+      points.push([...points[0]]);
+      return points;
+    }
+    
+    // Create rounded path from polygon
+    function createRoundedPath(polygon, radius) {
+      if (!polygon || polygon.length < 3) return '';
+      if (radius === 0) {
+        return `M${polygon.map(p => p.join(',')).join('L')}Z`;
+      }
+      
+      const points = polygon.slice(0, -1); // Remove closing point
+      const n = points.length;
+      
+      let path = '';
+      
+      for (let i = 0; i < n; i++) {
+        const prev = points[(i - 1 + n) % n];
+        const curr = points[i];
+        const next = points[(i + 1) % n];
+        
+        // Calculate vectors
+        const v1 = [prev[0] - curr[0], prev[1] - curr[1]];
+        const v2 = [next[0] - curr[0], next[1] - curr[1]];
+        
+        // Normalize vectors
+        const len1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1]);
+        const len2 = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1]);
+        
+        if (len1 === 0 || len2 === 0) continue;
+        
+        v1[0] /= len1;
+        v1[1] /= len1;
+        v2[0] /= len2;
+        v2[1] /= len2;
+        
+        // Calculate the maximum radius that fits
+        const maxRadius = Math.min(len1, len2) * 0.4 * (radius / 100);
+        
+        // Points where the curve starts and ends
+        const start = [
+          curr[0] + v1[0] * maxRadius,
+          curr[1] + v1[1] * maxRadius
+        ];
+        const end = [
+          curr[0] + v2[0] * maxRadius,
+          curr[1] + v2[1] * maxRadius
+        ];
+        
+        if (i === 0) {
+          path += `M${start[0]},${start[1]}`;
+        } else {
+          path += `L${start[0]},${start[1]}`;
+        }
+        
+        // Quadratic curve through the corner
+        path += `Q${curr[0]},${curr[1]} ${end[0]},${end[1]}`;
+      }
+      
+      path += 'Z';
+      return path;
+    }
+    
+    // ============================================
+    // COLOR FUNCTIONS
+    // ============================================
+    
+    function getColor(cell, index) {
+      // Check for manual assignment first
+      if (useCustomPalette && customColorMap[cell.name]) {
+        return customColorMap[cell.name];
+      }
+      
+      // Use ASE palette if active
+      if (useCustomPalette && aseColors.length > 0) {
+        return aseColors[index % aseColors.length].hex;
+      }
+      
+      // Use built-in palette
+      const palette = palettes[currentPalette];
+      const groups = [...new Set(parsedData.map(d => d.group))];
+      
+      if (groups.length <= 1) {
+        // Color by value
+        const values = parsedData.map(d => d.value);
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        const normalized = (cell.value - min) / (max - min || 1);
+        const idx = Math.floor(normalized * (palette.length - 1));
+        return palette[Math.min(idx, palette.length - 1)];
+      }
+      
+      // Color by group
+      const groupIndex = groups.indexOf(cell.group);
+      return palette[groupIndex % palette.length];
+    }
+    
+    // ============================================
+    // RENDER
+    // ============================================
+    
+    function render() {
+      const svg = document.getElementById('treemap-svg');
+      const iterations = parseInt(document.getElementById('iterations').value);
+      const showLabels = document.getElementById('show-labels').checked;
+      const showValues = document.getElementById('show-values').checked;
+      const showBorders = document.getElementById('show-borders').checked;
+      const fontSize = parseInt(document.getElementById('font-size').value) || 14;
+      const textColor = document.getElementById('text-color').value;
+      const bgColor = document.getElementById('bg-color').value;
+      const polygonSides = parseInt(document.getElementById('polygon-sides').value);
+      const cornerRounding = parseInt(document.getElementById('corner-rounding').value);
+      
+      document.getElementById('processing').classList.add('visible');
+      
+      requestAnimationFrame(() => {
+        cells = computeVoronoiTreemap(parsedData, width, height, iterations);
+        const totalValue = parsedData.reduce((sum, d) => sum + d.value, 0);
+        
+        // Build SVG content
+        let html = `
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <rect width="${width}" height="${height}" fill="${bgColor}"/>
+        `;
+        
+        cells.forEach((cell, i) => {
+          if (!cell.polygon || cell.polygon.length < 3) return;
+          
+          // Apply polygon simplification if needed
+          let processedPolygon = cell.polygon;
+          if (polygonSides < 12) {
+            processedPolygon = simplifyPolygon(cell.polygon, polygonSides);
+          }
+          
+          // Create path with optional rounding
+          const pathD = createRoundedPath(processedPolygon, cornerRounding);
+          
+          const color = getColor(cell, i);
+          const percentage = ((cell.value / totalValue) * 100).toFixed(1);
+          
+          // Calculate centroid
+          let cx = 0, cy = 0;
+          cell.polygon.forEach(p => { cx += p[0]; cy += p[1]; });
+          cx /= cell.polygon.length;
+          cy /= cell.polygon.length;
+          
+          // Scale font based on cell size
+          const scaledFont = Math.max(8, Math.min(fontSize, Math.sqrt(cell.currentArea) / 6));
+          
+          html += `
+            <g class="cell" data-index="${i}">
+              <path 
+                d="${pathD}" 
+                fill="${color}" 
+                stroke="${showBorders ? 'rgba(255,255,255,0.2)' : 'none'}" 
+                stroke-width="1"
+              />
+          `;
+          
+          // Add labels if cell is large enough
+          if (cell.currentArea > 1200 && (showLabels || showValues)) {
+            html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" 
+                          fill="${textColor}" style="font-size:${scaledFont}px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.5);pointer-events:none">`;
+            
+            if (showLabels) {
+              html += `<tspan x="${cx}" dy="${showValues ? '-0.4em' : '0'}">${cell.name}</tspan>`;
+            }
+            if (showValues) {
+              html += `<tspan x="${cx}" dy="${showLabels ? '1.3em' : '0'}" style="font-size:${scaledFont * 0.75}px;opacity:0.8">${percentage}%</tspan>`;
+            }
+            html += `</text>`;
+          }
+          
+          html += `</g>`;
+        });
+        
+        svg.innerHTML = html;
+        
+        // Add hover interactions
+        document.querySelectorAll('.cell').forEach(g => {
+          g.addEventListener('mouseenter', handleCellHover);
+          g.addEventListener('mouseleave', handleCellLeave);
+        });
+        
+        document.getElementById('processing').classList.remove('visible');
+      });
+    }
+    
+    // ============================================
+    // HOVER HANDLERS
+    // ============================================
+    
+    function handleCellHover(e) {
+      const index = parseInt(e.currentTarget.dataset.index);
+      const cell = cells[index];
+      if (!cell) return;
+      
+      const totalValue = parsedData.reduce((sum, d) => sum + d.value, 0);
+      const percentage = ((cell.value / totalValue) * 100).toFixed(1);
+      
+      const tooltip = document.getElementById('tooltip');
+      const tooltipName = document.getElementById('tooltip-name');
+      const tooltipDetails = document.getElementById('tooltip-details');
+      
+      tooltipName.textContent = cell.name;
+      tooltipName.style.color = getColor(cell, index);
+      
+      let details = `<span>Value: <strong>${cell.value.toLocaleString()}</strong></span>
+                     <span>Share: <strong>${percentage}%</strong></span>`;
+      if (cell.group !== 'default') {
+        details += `<span>Group: <strong>${cell.group}</strong></span>`;
+      }
+      tooltipDetails.innerHTML = details;
+      
+      tooltip.classList.add('visible');
+      
+      // Highlight effect
+      const path = e.currentTarget.querySelector('path');
+      path.setAttribute('filter', 'url(#glow)');
+      path.style.strokeWidth = '2';
+      
+      // Dim others
+      document.querySelectorAll('.cell').forEach(g => {
+        if (g !== e.currentTarget) {
+          g.style.opacity = '0.4';
+        }
+      });
+    }
+    
+    function handleCellLeave(e) {
+      document.getElementById('tooltip').classList.remove('visible');
+      
+      const path = e.currentTarget.querySelector('path');
+      path.removeAttribute('filter');
+      path.style.strokeWidth = '1';
+      
+      document.querySelectorAll('.cell').forEach(g => {
+        g.style.opacity = '1';
+      });
+    }
+    
+    // ============================================
+    // STATS & EXPORT
+    // ============================================
+    
+    function updateStats() {
+      document.getElementById('stat-items').textContent = parsedData.length;
+      document.getElementById('stat-total').textContent = parsedData.reduce((s, d) => s + d.value, 0).toLocaleString();
+      document.getElementById('stat-groups').textContent = [...new Set(parsedData.map(d => d.group))].length;
+    }
+    
+    function exportPNG() {
+      const svg = document.getElementById('treemap-svg');
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2;
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(2, 2);
+        ctx.drawImage(img, 0, 0);
+        
+        const link = document.createElement('a');
+        link.download = 'convex-treemap.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+    
+    // ============================================
+    // COLOR INPUT SYNC
+    // ============================================
+    
+    function syncColorInputs(colorInput, hexInput) {
+      colorInput.addEventListener('input', () => {
+        hexInput.value = colorInput.value;
+        render();
+      });
+      hexInput.addEventListener('input', () => {
+        if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+          colorInput.value = hexInput.value;
+          render();
+        }
+      });
+    }
+    
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    
+    function init() {
+      initPalettes();
+      initASEImport();
+      
+      // CSV input
+      const csvInput = document.getElementById('csv-input');
+      csvInput.addEventListener('input', () => {
+        parsedData = parseCSV(csvInput.value);
+        updateStats();
+        updateColorAssignmentUI();
+        render();
+      });
+      
+      // File upload
+      document.getElementById('file-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            csvInput.value = evt.target.result;
+            parsedData = parseCSV(evt.target.result);
+            updateStats();
+            updateColorAssignmentUI();
+            render();
+          };
+          reader.readAsText(file);
+        }
+      });
+      
+      // Iterations slider
+      const iterSlider = document.getElementById('iterations');
+      const iterValue = document.getElementById('iter-value');
+      iterSlider.addEventListener('input', () => {
+        iterValue.textContent = iterSlider.value;
+      });
+      iterSlider.addEventListener('change', render);
+      
+      // Polygon sides slider
+      const sidesSlider = document.getElementById('polygon-sides');
+      const sidesValue = document.getElementById('sides-value');
+      sidesSlider.addEventListener('input', () => {
+        sidesValue.textContent = sidesSlider.value >= 12 ? 'Auto' : sidesSlider.value;
+      });
+      sidesSlider.addEventListener('change', render);
+      
+      // Corner rounding slider
+      const roundingSlider = document.getElementById('corner-rounding');
+      const roundingValue = document.getElementById('rounding-value');
+      roundingSlider.addEventListener('input', () => {
+        roundingValue.textContent = roundingSlider.value + '%';
+      });
+      roundingSlider.addEventListener('change', render);
+      
+      // Checkboxes
+      document.getElementById('show-labels').addEventListener('change', render);
+      document.getElementById('show-values').addEventListener('change', render);
+      document.getElementById('show-borders').addEventListener('change', render);
+      
+      // Font size
+      document.getElementById('font-size').addEventListener('change', render);
+      
+      // Color inputs
+      syncColorInputs(document.getElementById('text-color'), document.getElementById('text-color-hex'));
+      syncColorInputs(document.getElementById('bg-color'), document.getElementById('bg-color-hex'));
+      
+      // Export button
+      document.getElementById('export-btn').addEventListener('click', exportPNG);
+      
+      // Initial render
+      parsedData = parseCSV(csvInput.value);
+      updateStats();
+      render();
+    }
+    
+    // Start
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
