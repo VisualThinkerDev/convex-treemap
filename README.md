@@ -12,7 +12,7 @@ A web-based tool for creating Voronoi-based treemap visualizations from CSV data
 
 ## Live Tool
 
-Access the tool at: `https://YOUR-USERNAME.github.io/convex-treemap/`
+Access the tool at: `https://VisualThinkerDev.github.io/convex-treemap/`
 
 ## For Students
 
